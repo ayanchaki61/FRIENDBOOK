@@ -81,6 +81,62 @@ npm run dev
 
 If either value is left as the placeholder `your_google_oauth_client_id.apps.googleusercontent.com`, Google login/signup will stay disabled.
 
+## Deployment (Vercel + Render + MongoDB Atlas + Cloudinary)
+
+### 1. MongoDB Atlas
+
+Create a MongoDB Atlas cluster and copy your connection string into backend `MONGO_URI`.
+
+### 2. Cloudinary
+
+Create a Cloudinary account and copy:
+
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+
+Add these values in Render backend environment variables.
+
+### 3. Backend on Render
+
+Create a new `Web Service` from this repo:
+
+- Root directory: `server`
+- Build command: `npm install`
+- Start command: `npm start`
+
+Set environment variables:
+
+- `PORT=10000` (Render default)
+- `MONGO_URI=<your atlas uri>`
+- `JWT_SECRET=<strong random secret>`
+- `GOOGLE_CLIENT_ID=<same google web client id>`
+- `CLIENT_URLS=https://<your-vercel-domain>`
+- `CLOUDINARY_CLOUD_NAME=<cloudinary cloud name>`
+- `CLOUDINARY_API_KEY=<cloudinary api key>`
+- `CLOUDINARY_API_SECRET=<cloudinary api secret>`
+
+### 4. Frontend on Vercel
+
+Import this repo into Vercel with:
+
+- Framework preset: `Vite`
+- Root directory: `client`
+
+Set environment variables:
+
+- `VITE_API_BASE_URL=https://<your-render-domain>/api`
+- `VITE_GOOGLE_CLIENT_ID=<same google web client id>`
+
+### 5. Final allowlist updates
+
+After Vercel is deployed, copy the final Vercel URL and update:
+
+- Render `CLIENT_URLS`
+- Google OAuth `Authorized JavaScript origins`
+
+Redeploy backend and frontend after changing environment variables.
+
 ## API Endpoints
 
 ### Auth
