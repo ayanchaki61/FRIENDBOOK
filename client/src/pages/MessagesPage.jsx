@@ -117,7 +117,8 @@ function MessagesPage() {
         <h3>{selectedFriend ? `Chat with ${selectedFriend.name}` : 'Select a friend to start chat'}</h3>
         <div className="message-thread" ref={threadRef}>
           {messages.map((message) => {
-            const mine = (message.sender?._id || message.sender) === (user?._id || user?.id);
+            const senderId = message.sender?._id || message.sender?.id || message.sender;
+            const mine = senderId === (user?._id || user?.id);
             const sender = typeof message.sender === 'object' ? message.sender : null;
             const avatarUrl = mine ? user?.avatar || sender?.avatar : sender?.avatar;
             const avatarName = mine ? user?.name || 'You' : sender?.name || selectedFriend?.name || 'Friend';
