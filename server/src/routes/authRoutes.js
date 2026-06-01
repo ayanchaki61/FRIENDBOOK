@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
-const User = require('../models/User');
+const { User } = require('../sqlModels');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -19,24 +19,35 @@ const isConfiguredGoogleClientId = (value) => {
 };
 
 const signToken = (user) =>
-  jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, {
+  jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, {
     expiresIn: '7d',
   });
 
-const serializeUser = (user) => ({
-  id: user._id,
-  name: user.name,
-  email: user.email,
-  hasPassword: Boolean(user.password),
-  bio: user.bio,
-  avatar: user.avatar,
-  location: user.location,
-  work: user.work,
-  study: user.study,
-  dob: user.dob,
-  relationship: user.relationship,
-  friends: user.friends,
-});
+const serializeUser = (user) => {
+  const plainUser = user.toJSON ? user.toJSON() : user;
+
+  return {
+    id: plainUser.id,
+    name: plainUser.name,
+    email: plainUser.email,
+    hasPassword: Boolean(plainUser.password),
+    bio: plainUser.bio,
+    avatar: plainUser.avatar,
+    location: plainUser.location,
+    work: plainUser.work,
+    study: plainUser.study,
+    dob: plainUser.dob,
+    relationship: plainUser.relationship,
+    friends: Array.isArray(plainUser.friends)
+      ? plainUser.friends.map((friend) => ({
+          id: friend.id,
+          name: friend.name,
+          email: friend.email,
+          avatar: friend.avatar,
+        }))
+      : [],
+  };
+};
 
 const getGoogleClient = () => {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -52,7 +63,7 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await User.findOne({ where: { email: email.toLowerCase() } });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already in use' });
     }
@@ -82,7 +93,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ where: { email: email.toLowerCase() } });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
@@ -131,7 +142,7 @@ router.post('/google', async (req, res) => {
       return res.status(400).json({ message: 'Invalid Google account' });
     }
 
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
 
     if (!user) {
       user = await User.create({
@@ -166,7 +177,7 @@ router.post('/password', auth, async (req, res) => {
       return res.status(400).json({ message: 'New password must be at least 6 characters long' });
     }
 
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -197,7 +208,9 @@ router.post('/password', auth, async (req, res) => {
 
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate('friends', 'name email avatar');
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id', 'name', 'email', 'avatar'] }],
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });

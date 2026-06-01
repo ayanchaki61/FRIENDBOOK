@@ -1,15 +1,27 @@
 const express = require('express');
-const Post = require('../models/Post');
-const User = require('../models/User');
-const Notification = require('../models/Notification');
+const { Op } = require('sequelize');
+const { Post, User, Notification, Comment } = require('../sqlModels');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-const postPopulate = [
-  { path: 'author', select: 'name email avatar' },
-  { path: 'comments.user', select: 'name avatar' },
+const postInclude = [
+  { model: User, as: 'author', attributes: ['id', 'name', 'email', 'avatar'] },
+  {
+    model: Comment,
+    as: 'comments',
+    include: [
+      { model: User, as: 'user', attributes: ['id', 'name', 'avatar'] },
+      { model: User, as: 'likes', attributes: ['id', 'name', 'avatar'] },
+    ],
+  },
+  { model: User, as: 'likes', attributes: ['id'] },
 ];
+
+const getPopulatedPost = async (postId) =>
+  Post.findByPk(postId, {
+    include: postInclude,
+  });
 
 router.post('/', auth, async (req, res) => {
   try {
@@ -20,24 +32,31 @@ router.post('/', auth, async (req, res) => {
     }
 
     const post = await Post.create({
-      author: req.user.id,
+      authorId: req.user.id,
       text: text || '',
       photoUrl: photoUrl || '',
     });
 
-    const user = await User.findById(req.user.id).populate('friends', '_id');
-    await Notification.insertMany(
-      user.friends.map((friend) => ({
-        user: friend._id,
-        type: 'post',
-        message: `${user.name} added a new post`,
-        relatedUser: user._id,
-        relatedPost: post._id,
-      }))
-    );
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id'] }],
+      attributes: ['id', 'name'],
+    });
 
-    const populatedPost = await Post.findById(post._id).populate(postPopulate);
+    const notifications = user.friends.map((friend) => ({
+      userId: friend.id,
+      type: 'post',
+      message: `${user.name} added a new post`,
+      relatedUserId: user.id,
+      relatedPostId: post.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
 
+    if (notifications.length > 0) {
+      await Notification.bulkCreate(notifications);
+    }
+
+    const populatedPost = await getPopulatedPost(post.id);
     return res.status(201).json(populatedPost);
   } catch (error) {
     return res.status(500).json({ message: 'Server error' });
@@ -46,10 +65,18 @@ router.post('/', auth, async (req, res) => {
 
 const getHomeFeed = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('friends');
-    const authorIds = [req.user.id, ...user.friends];
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id'] }],
+      attributes: ['id'],
+    });
 
-    const posts = await Post.find({ author: { $in: authorIds } }).populate(postPopulate).sort({ createdAt: -1 });
+    const authorIds = [req.user.id, ...(user.friends || []).map((friend) => friend.id)];
+
+    const posts = await Post.findAll({
+      where: { authorId: { [Op.in]: authorIds } },
+      include: postInclude,
+      order: [['createdAt', 'DESC']],
+    });
 
     return res.status(200).json(posts);
   } catch (error) {
@@ -62,7 +89,11 @@ router.get('/wall', auth, getHomeFeed);
 
 router.get('/user/:userId', auth, async (req, res) => {
   try {
-    const posts = await Post.find({ author: req.params.userId }).populate(postPopulate).sort({ createdAt: -1 });
+    const posts = await Post.findAll({
+      where: { authorId: req.params.userId },
+      include: postInclude,
+      order: [['createdAt', 'DESC']],
+    });
 
     return res.status(200).json(posts);
   } catch (error) {
@@ -73,13 +104,13 @@ router.get('/user/:userId', auth, async (req, res) => {
 router.put('/:postId', auth, async (req, res) => {
   try {
     const { text, photoUrl } = req.body;
-    const post = await Post.findById(req.params.postId);
+    const post = await Post.findByPk(req.params.postId);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    if (post.author.toString() !== req.user.id) {
+    if (String(post.authorId) !== String(req.user.id)) {
       return res.status(403).json({ message: 'Not allowed' });
     }
 
@@ -94,7 +125,7 @@ router.put('/:postId', auth, async (req, res) => {
     post.photoUrl = nextPhotoUrl;
     await post.save();
 
-    const populatedPost = await Post.findById(post._id).populate(postPopulate);
+    const populatedPost = await getPopulatedPost(post.id);
     return res.status(200).json(populatedPost);
   } catch (error) {
     return res.status(500).json({ message: 'Server error' });
@@ -103,34 +134,35 @@ router.put('/:postId', auth, async (req, res) => {
 
 router.post('/:postId/like', auth, async (req, res) => {
   try {
-    const post = await Post.findById(req.params.postId);
+    const post = await Post.findByPk(req.params.postId, {
+      include: [{ model: User, as: 'likes', attributes: ['id'] }],
+    });
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const existingLikeIndex = post.likes.findIndex((id) => id.toString() === req.user.id);
-    const addedLike = existingLikeIndex < 0;
-    if (existingLikeIndex >= 0) {
-      post.likes.splice(existingLikeIndex, 1);
+    const existingLike = post.likes.some((user) => String(user.id) === String(req.user.id));
+    const addedLike = !existingLike;
+
+    if (existingLike) {
+      await post.removeLike(req.user.id);
     } else {
-      post.likes.push(req.user.id);
+      await post.addLike(req.user.id);
     }
 
-    await post.save();
-
-    if (addedLike && post.author.toString() !== req.user.id) {
-      const actor = await User.findById(req.user.id).select('name');
+    if (addedLike && String(post.authorId) !== String(req.user.id)) {
+      const actor = await User.findByPk(req.user.id, { attributes: ['name'] });
       await Notification.create({
-        user: post.author,
+        userId: post.authorId,
         type: 'post_like',
         message: `${actor?.name || 'Someone'} liked your post`,
-        relatedUser: req.user.id,
-        relatedPost: post._id,
+        relatedUserId: req.user.id,
+        relatedPostId: post.id,
       });
     }
 
-    const populatedPost = await Post.findById(post._id).populate(postPopulate);
+    const populatedPost = await getPopulatedPost(post.id);
     return res.status(200).json(populatedPost);
   } catch (error) {
     return res.status(500).json({ message: 'Server error' });
@@ -140,7 +172,7 @@ router.post('/:postId/like', auth, async (req, res) => {
 router.post('/:postId/comments', auth, async (req, res) => {
   try {
     const { text } = req.body;
-    const post = await Post.findById(req.params.postId);
+    const post = await Post.findByPk(req.params.postId);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -150,25 +182,24 @@ router.post('/:postId/comments', auth, async (req, res) => {
       return res.status(400).json({ message: 'Comment text is required' });
     }
 
-    post.comments.push({
-      user: req.user.id,
+    await Comment.create({
+      userId: req.user.id,
+      postId: post.id,
       text: text.trim(),
     });
 
-    await post.save();
-
-    if (post.author.toString() !== req.user.id) {
-      const actor = await User.findById(req.user.id).select('name');
+    if (String(post.authorId) !== String(req.user.id)) {
+      const actor = await User.findByPk(req.user.id, { attributes: ['name'] });
       await Notification.create({
-        user: post.author,
+        userId: post.authorId,
         type: 'post_comment',
         message: `${actor?.name || 'Someone'} commented on your post`,
-        relatedUser: req.user.id,
-        relatedPost: post._id,
+        relatedUserId: req.user.id,
+        relatedPostId: post.id,
       });
     }
 
-    const populatedPost = await Post.findById(post._id).populate(postPopulate);
+    const populatedPost = await getPopulatedPost(post.id);
     return res.status(201).json(populatedPost);
   } catch (error) {
     return res.status(500).json({ message: 'Server error' });
@@ -177,39 +208,41 @@ router.post('/:postId/comments', auth, async (req, res) => {
 
 router.post('/:postId/comments/:commentId/like', auth, async (req, res) => {
   try {
-    const post = await Post.findById(req.params.postId);
+    const post = await Post.findByPk(req.params.postId);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const comment = post.comments.id(req.params.commentId);
-    if (!comment) {
+    const comment = await Comment.findByPk(req.params.commentId, {
+      include: [{ model: User, as: 'likes', attributes: ['id'] }],
+    });
+
+    if (!comment || String(comment.postId) !== String(post.id)) {
       return res.status(404).json({ message: 'Comment not found' });
     }
 
-    const existingLikeIndex = comment.likes.findIndex((id) => id.toString() === req.user.id);
-    const addedLike = existingLikeIndex < 0;
-    if (existingLikeIndex >= 0) {
-      comment.likes.splice(existingLikeIndex, 1);
+    const existingLike = comment.likes.some((user) => String(user.id) === String(req.user.id));
+    const addedLike = !existingLike;
+
+    if (existingLike) {
+      await comment.removeLike(req.user.id);
     } else {
-      comment.likes.push(req.user.id);
+      await comment.addLike(req.user.id);
     }
 
-    await post.save();
-
-    if (addedLike && comment.user.toString() !== req.user.id) {
-      const actor = await User.findById(req.user.id).select('name');
+    if (addedLike && String(comment.userId) !== String(req.user.id)) {
+      const actor = await User.findByPk(req.user.id, { attributes: ['name'] });
       await Notification.create({
-        user: comment.user,
+        userId: comment.userId,
         type: 'comment_like',
         message: `${actor?.name || 'Someone'} liked your comment`,
-        relatedUser: req.user.id,
-        relatedPost: post._id,
+        relatedUserId: req.user.id,
+        relatedPostId: post.id,
       });
     }
 
-    const populatedPost = await Post.findById(post._id).populate(postPopulate);
+    const populatedPost = await getPopulatedPost(post.id);
     return res.status(200).json(populatedPost);
   } catch (error) {
     return res.status(500).json({ message: 'Server error' });
@@ -218,18 +251,18 @@ router.post('/:postId/comments/:commentId/like', auth, async (req, res) => {
 
 router.delete('/:postId', auth, async (req, res) => {
   try {
-    const post = await Post.findById(req.params.postId);
+    const post = await Post.findByPk(req.params.postId);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    if (post.author.toString() !== req.user.id) {
+    if (String(post.authorId) !== String(req.user.id)) {
       return res.status(403).json({ message: 'Not allowed' });
     }
 
-    await Post.findByIdAndDelete(req.params.postId);
-    await Notification.deleteMany({ relatedPost: req.params.postId });
+    await Notification.destroy({ where: { relatedPostId: post.id } });
+    await post.destroy();
 
     return res.status(200).json({ message: 'Post deleted' });
   } catch (error) {

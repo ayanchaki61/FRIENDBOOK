@@ -1,16 +1,19 @@
 const express = require('express');
-const Message = require('../models/Message');
-const User = require('../models/User');
+const { Op } = require('sequelize');
+const { Message, User } = require('../sqlModels');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 
 const isFriend = (user, friendId) =>
-  user.friends.some((id) => id.toString() === friendId.toString());
+  user.friends.some((friend) => String(friend.id) === String(friendId));
 
 router.get('/friends', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate('friends', 'name email avatar bio');
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id', 'name', 'email', 'avatar', 'bio'] }],
+      attributes: ['id'],
+    });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -23,9 +26,11 @@ router.get('/friends', auth, async (req, res) => {
 
 router.get('/unread-count', auth, async (req, res) => {
   try {
-    const count = await Message.countDocuments({
-      receiver: req.user.id,
-      isRead: false,
+    const count = await Message.count({
+      where: {
+        receiverId: req.user.id,
+        isRead: false,
+      },
     });
 
     return res.status(200).json({ count });
@@ -37,7 +42,10 @@ router.get('/unread-count', auth, async (req, res) => {
 router.get('/:friendId', auth, async (req, res) => {
   try {
     const { friendId } = req.params;
-    const user = await User.findById(req.user.id).select('friends');
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id'] }],
+      attributes: ['id'],
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -47,24 +55,30 @@ router.get('/:friendId', auth, async (req, res) => {
       return res.status(403).json({ message: 'You can only message your friends' });
     }
 
-    await Message.updateMany(
+    await Message.update(
+      { isRead: true },
       {
-        sender: friendId,
-        receiver: req.user.id,
-        isRead: false,
-      },
-      { $set: { isRead: true } }
+        where: {
+          senderId: friendId,
+          receiverId: req.user.id,
+          isRead: false,
+        },
+      }
     );
 
-    const messages = await Message.find({
-      $or: [
-        { sender: req.user.id, receiver: friendId },
-        { sender: friendId, receiver: req.user.id },
+    const messages = await Message.findAll({
+      where: {
+        [Op.or]: [
+          { senderId: req.user.id, receiverId: friendId },
+          { senderId: friendId, receiverId: req.user.id },
+        ],
+      },
+      order: [['createdAt', 'ASC']],
+      include: [
+        { model: User, as: 'sender', attributes: ['id', 'name', 'avatar'] },
+        { model: User, as: 'receiver', attributes: ['id', 'name', 'avatar'] },
       ],
-    })
-      .sort({ createdAt: 1 })
-      .populate('sender', 'name avatar')
-      .populate('receiver', 'name avatar');
+    });
 
     return res.status(200).json(messages);
   } catch (error) {
@@ -81,7 +95,10 @@ router.post('/:friendId', auth, async (req, res) => {
       return res.status(400).json({ message: 'Message text is required' });
     }
 
-    const user = await User.findById(req.user.id).select('friends');
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id'] }],
+      attributes: ['id'],
+    });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -91,15 +108,18 @@ router.post('/:friendId', auth, async (req, res) => {
     }
 
     const message = await Message.create({
-      sender: req.user.id,
-      receiver: friendId,
+      senderId: req.user.id,
+      receiverId: friendId,
       text: text.trim(),
       isRead: false,
     });
 
-    const populated = await Message.findById(message._id)
-      .populate('sender', 'name avatar')
-      .populate('receiver', 'name avatar');
+    const populated = await Message.findByPk(message.id, {
+      include: [
+        { model: User, as: 'sender', attributes: ['id', 'name', 'avatar'] },
+        { model: User, as: 'receiver', attributes: ['id', 'name', 'avatar'] },
+      ],
+    });
 
     return res.status(201).json(populated);
   } catch (error) {

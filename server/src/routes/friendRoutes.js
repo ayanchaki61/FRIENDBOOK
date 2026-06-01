@@ -1,7 +1,6 @@
 const express = require('express');
-const User = require('../models/User');
-const FriendRequest = require('../models/FriendRequest');
-const Notification = require('../models/Notification');
+const { Op } = require('sequelize');
+const { User, FriendRequest, Notification } = require('../sqlModels');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -17,22 +16,27 @@ router.get('/status/:userId', auth, async (req, res) => {
       });
     }
 
-    const user = await User.findById(req.user.id).select('friends');
-    const targetUser = await User.findById(targetId).select('_id');
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id'] }],
+      attributes: ['id'],
+    });
+    const targetUser = await User.findByPk(targetId, { attributes: ['id'] });
 
     if (!user || !targetUser) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const areFriends = user.friends.some((friendId) => friendId.toString() === targetId);
+    const areFriends = user.friends.some((friend) => String(friend.id) === String(targetId));
 
     const pendingRequest = await FriendRequest.findOne({
-      status: 'pending',
-      $or: [
-        { sender: req.user.id, receiver: targetId },
-        { sender: targetId, receiver: req.user.id },
-      ],
-    }).select('_id sender receiver status');
+      where: {
+        status: 'pending',
+        [Op.or]: [
+          { senderId: req.user.id, receiverId: targetId },
+          { senderId: targetId, receiverId: req.user.id },
+        ],
+      },
+    });
 
     if (!pendingRequest) {
       return res.status(200).json({
@@ -41,12 +45,12 @@ router.get('/status/:userId', auth, async (req, res) => {
       });
     }
 
-    const direction = pendingRequest.receiver.toString() === req.user.id ? 'incoming' : 'outgoing';
+    const direction = String(pendingRequest.receiverId) === String(req.user.id) ? 'incoming' : 'outgoing';
 
     return res.status(200).json({
       areFriends,
       pendingRequest: {
-        id: pendingRequest._id,
+        id: pendingRequest.id,
         status: pendingRequest.status,
         direction,
       },
@@ -64,23 +68,29 @@ router.post('/request/:userId', auth, async (req, res) => {
       return res.status(400).json({ message: 'You cannot send request to yourself' });
     }
 
-    const sender = await User.findById(req.user.id);
-    const receiver = await User.findById(receiverId);
+    const sender = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id'] }],
+      attributes: ['id', 'name'],
+    });
+    const receiver = await User.findByPk(receiverId, { attributes: ['id', 'name'] });
 
     if (!sender || !receiver) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (sender.friends.some((friendId) => friendId.toString() === receiverId)) {
+    const alreadyFriends = sender.friends.some((friend) => String(friend.id) === String(receiverId));
+    if (alreadyFriends) {
       return res.status(400).json({ message: 'Already friends' });
     }
 
     const existing = await FriendRequest.findOne({
-      status: 'pending',
-      $or: [
-        { sender: req.user.id, receiver: receiverId },
-        { sender: receiverId, receiver: req.user.id },
-      ],
+      where: {
+        status: 'pending',
+        [Op.or]: [
+          { senderId: req.user.id, receiverId },
+          { senderId: receiverId, receiverId: req.user.id },
+        ],
+      },
     });
 
     if (existing) {
@@ -88,16 +98,16 @@ router.post('/request/:userId', auth, async (req, res) => {
     }
 
     const request = await FriendRequest.create({
-      sender: req.user.id,
-      receiver: receiverId,
+      senderId: req.user.id,
+      receiverId,
       status: 'pending',
     });
 
     await Notification.create({
-      user: receiverId,
+      userId: receiverId,
       type: 'friend_request',
       message: `${sender.name} sent you a friend request`,
-      relatedUser: req.user.id,
+      relatedUserId: req.user.id,
     });
 
     return res.status(201).json(request);
@@ -108,9 +118,11 @@ router.post('/request/:userId', auth, async (req, res) => {
 
 router.get('/requests', auth, async (req, res) => {
   try {
-    const requests = await FriendRequest.find({ receiver: req.user.id, status: 'pending' })
-      .populate('sender', 'name email avatar bio')
-      .sort({ createdAt: -1 });
+    const requests = await FriendRequest.findAll({
+      where: { receiverId: req.user.id, status: 'pending' },
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'avatar', 'bio'] }],
+      order: [['createdAt', 'DESC']],
+    });
 
     return res.status(200).json(requests);
   } catch (error) {
@@ -120,42 +132,34 @@ router.get('/requests', auth, async (req, res) => {
 
 router.post('/requests/:requestId/accept', auth, async (req, res) => {
   try {
-    const request = await FriendRequest.findById(req.params.requestId);
+    const request = await FriendRequest.findByPk(req.params.requestId);
 
     if (!request || request.status !== 'pending') {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    if (request.receiver.toString() !== req.user.id) {
+    if (String(request.receiverId) !== String(req.user.id)) {
       return res.status(403).json({ message: 'Not allowed' });
     }
 
     request.status = 'accepted';
     await request.save();
 
-    const sender = await User.findById(request.sender);
-    const receiver = await User.findById(request.receiver);
+    const sender = await User.findByPk(request.senderId, { attributes: ['id', 'name'] });
+    const receiver = await User.findByPk(request.receiverId, { attributes: ['id', 'name'] });
 
     if (!sender || !receiver) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (!sender.friends.some((friendId) => friendId.toString() === receiver._id.toString())) {
-      sender.friends.push(receiver._id);
-    }
-
-    if (!receiver.friends.some((friendId) => friendId.toString() === sender._id.toString())) {
-      receiver.friends.push(sender._id);
-    }
-
-    await sender.save();
-    await receiver.save();
+    await sender.addFriend(receiver);
+    await receiver.addFriend(sender);
 
     await Notification.create({
-      user: sender._id,
+      userId: sender.id,
       type: 'friend_accept',
       message: `${receiver.name} accepted your friend request`,
-      relatedUser: receiver._id,
+      relatedUserId: receiver.id,
     });
 
     return res.status(200).json({ message: 'Friend request accepted' });
@@ -166,13 +170,13 @@ router.post('/requests/:requestId/accept', auth, async (req, res) => {
 
 router.post('/requests/:requestId/reject', auth, async (req, res) => {
   try {
-    const request = await FriendRequest.findById(req.params.requestId);
+    const request = await FriendRequest.findByPk(req.params.requestId);
 
     if (!request || request.status !== 'pending') {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    if (request.receiver.toString() !== req.user.id) {
+    if (String(request.receiverId) !== String(req.user.id)) {
       return res.status(403).json({ message: 'Not allowed' });
     }
 
@@ -193,23 +197,15 @@ router.delete('/:userId', auth, async (req, res) => {
       return res.status(400).json({ message: 'You cannot unfriend yourself' });
     }
 
-    const user = await User.findById(req.user.id);
-    const targetUser = await User.findById(targetId);
+    const user = await User.findByPk(req.user.id);
+    const targetUser = await User.findByPk(targetId);
 
     if (!user || !targetUser) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const areFriends = user.friends.some((friendId) => friendId.toString() === targetId);
-    if (!areFriends) {
-      return res.status(400).json({ message: 'You are not friends with this user' });
-    }
-
-    user.friends = user.friends.filter((friendId) => friendId.toString() !== targetId);
-    targetUser.friends = targetUser.friends.filter((friendId) => friendId.toString() !== req.user.id);
-
-    await user.save();
-    await targetUser.save();
+    await user.removeFriend(targetUser);
+    await targetUser.removeFriend(user);
 
     return res.status(200).json({ message: 'Unfriended successfully' });
   } catch (error) {

@@ -22,10 +22,10 @@ async function migrate() {
     console.log('Syncing Sequelize models (this will create tables)...');
     await sequelize.sync({ force: true });
 
-    // Maps to keep track of Mongo _id -> SQL id
     const userIdMap = new Map();
+    const postIdMap = new Map();
+    const queryInterface = sequelize.getQueryInterface();
 
-    // Migrate users
     const mongoUsers = await MongoUser.find().lean();
     console.log(`Migrating ${mongoUsers.length} users...`);
     for (const mu of mongoUsers) {
@@ -44,9 +44,7 @@ async function migrate() {
       userIdMap.set(String(mu._id), u.id);
     }
 
-    // Migrate friends (UserFriends join table)
     console.log('Migrating friendships...');
-    const queryInterface = sequelize.getQueryInterface();
     const userFriendsRows = [];
     for (const mu of mongoUsers) {
       const fromId = userIdMap.get(String(mu._id));
@@ -62,49 +60,76 @@ async function migrate() {
       await queryInterface.bulkInsert('UserFriends', userFriendsRows);
     }
 
-    // Migrate posts, comments and likes
+    console.log('Migrating posts...');
+    const postLikesRows = [];
+    const commentLikesRows = [];
     const mongoPosts = await MongoPost.find().lean();
-    console.log(`Migrating ${mongoPosts.length} posts...`);
     for (const mp of mongoPosts) {
       const authorSqlId = userIdMap.get(String(mp.author));
-      const post = await Post.create({ text: mp.text || '', photoUrl: mp.photoUrl || '', authorId: authorSqlId });
+      const post = await Post.create({
+        text: mp.text || '',
+        photoUrl: mp.photoUrl || '',
+        authorId: authorSqlId,
+      });
+      postIdMap.set(String(mp._id), post.id);
 
-      // comments
       if (mp.comments && Array.isArray(mp.comments)) {
         for (const c of mp.comments) {
           const commenterId = userIdMap.get(String(c.user));
-          await Comment.create({ text: c.text, userId: commenterId, postId: post.id, createdAt: c.createdAt || new Date(), updatedAt: c.createdAt || new Date() });
+          const comment = await Comment.create({
+            text: c.text,
+            userId: commenterId,
+            postId: post.id,
+            createdAt: c.createdAt || new Date(),
+            updatedAt: c.createdAt || new Date(),
+          });
+
+          if (c.likes && Array.isArray(c.likes)) {
+            for (const likerId of c.likes) {
+              const sqlUserId = userIdMap.get(String(likerId));
+              if (sqlUserId) {
+                commentLikesRows.push({ commentId: comment.id, userId: sqlUserId, createdAt: new Date(), updatedAt: new Date() });
+              }
+            }
+          }
         }
       }
 
-      // likes (junction table PostLikes)
-      if (mp.likes && Array.isArray(mp.likes) && mp.likes.length > 0) {
-        for (const luv of mp.likes) {
-          const likerId = userIdMap.get(String(luv));
-          if (likerId) {
-            await queryInterface.bulkInsert('PostLikes', [{ postId: post.id, userId: likerId, createdAt: new Date(), updatedAt: new Date() }]);
+      if (mp.likes && Array.isArray(mp.likes)) {
+        for (const likerId of mp.likes) {
+          const sqlUserId = userIdMap.get(String(likerId));
+          if (sqlUserId) {
+            postLikesRows.push({ postId: post.id, userId: sqlUserId, createdAt: new Date(), updatedAt: new Date() });
           }
         }
       }
     }
 
-    // Migrate notifications
+    if (postLikesRows.length > 0) {
+      await queryInterface.bulkInsert('PostLikes', postLikesRows);
+    }
+
+    if (commentLikesRows.length > 0) {
+      await queryInterface.bulkInsert('CommentLikes', commentLikesRows);
+    }
+
+    console.log('Migrating notifications...');
     const mongoNotifications = await MongoNotification.find().lean();
-    console.log(`Migrating ${mongoNotifications.length} notifications...`);
     for (const mn of mongoNotifications) {
       await Notification.create({
         userId: userIdMap.get(String(mn.user)),
         type: mn.type,
         message: mn.message,
         relatedUserId: mn.relatedUser ? userIdMap.get(String(mn.relatedUser)) : null,
-        relatedPostId: mn.relatedPost ? (await Post.findOne({ where: { /* best-effort: leave null if unknown */ } })) : null,
+        relatedPostId: mn.relatedPost ? postIdMap.get(String(mn.relatedPost)) : null,
         isRead: !!mn.isRead,
+        createdAt: mn.createdAt || new Date(),
+        updatedAt: mn.createdAt || new Date(),
       });
     }
 
-    // Migrate messages
+    console.log('Migrating messages...');
     const mongoMessages = await MongoMessage.find().lean();
-    console.log(`Migrating ${mongoMessages.length} messages...`);
     for (const mm of mongoMessages) {
       await Message.create({
         text: mm.text,
@@ -116,9 +141,8 @@ async function migrate() {
       });
     }
 
-    // Migrate friend requests
+    console.log('Migrating friend requests...');
     const mongoFRs = await MongoFriendRequest.find().lean();
-    console.log(`Migrating ${mongoFRs.length} friend requests...`);
     for (const fr of mongoFRs) {
       await FriendRequest.create({
         status: fr.status,

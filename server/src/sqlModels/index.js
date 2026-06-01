@@ -28,6 +28,9 @@ Comment.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 Comment.belongsTo(Post, { foreignKey: 'postId', as: 'post' });
 Post.hasMany(Comment, { foreignKey: 'postId', as: 'comments' });
 
+Comment.belongsToMany(User, { through: 'CommentLikes', as: 'likes', foreignKey: 'commentId', otherKey: 'userId' });
+User.belongsToMany(Comment, { through: 'CommentLikes', as: 'likedComments', foreignKey: 'userId', otherKey: 'commentId' });
+
 Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 Notification.belongsTo(User, { foreignKey: 'relatedUserId', as: 'relatedUser' });
 Notification.belongsTo(Post, { foreignKey: 'relatedPostId', as: 'relatedPost' });

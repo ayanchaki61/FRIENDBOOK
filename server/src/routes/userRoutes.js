@@ -1,6 +1,6 @@
 const express = require('express');
-const User = require('../models/User');
-const FriendRequest = require('../models/FriendRequest');
+const { Op } = require('sequelize');
+const { sequelize, User, FriendRequest } = require('../sqlModels');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -13,34 +13,51 @@ router.get('/search', auth, async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const currentUser = await User.findById(req.user.id).select('friends');
+    const currentUser = await User.findByPk(req.user.id, {
+      include: [{ model: User, as: 'friends', attributes: ['id'] }],
+      attributes: ['id'],
+    });
 
-    const users = await User.find({
-      _id: { $ne: req.user.id },
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { email: { $regex: query, $options: 'i' } },
-      ],
-    })
-      .select('name email avatar bio')
-      .limit(20);
+    const lowerQuery = query.toLowerCase();
+    const users = await User.findAll({
+      where: {
+        id: { [Op.ne]: req.user.id },
+        [Op.or]: [
+          sequelize.where(sequelize.fn('LOWER', sequelize.col('name')), { [Op.like]: `%${lowerQuery}%` }),
+          sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), { [Op.like]: `%${lowerQuery}%` }),
+        ],
+      },
+      attributes: ['id', 'name', 'email', 'avatar', 'bio'],
+      limit: 20,
+    });
 
-    const pendingRequests = await FriendRequest.find({
-      status: 'pending',
-      $or: [{ sender: req.user.id }, { receiver: req.user.id }],
-    }).select('sender receiver');
+    const pendingRequests = await FriendRequest.findAll({
+      where: {
+        status: 'pending',
+        [Op.or]: [
+          { senderId: req.user.id },
+          { receiverId: req.user.id },
+        ],
+      },
+      attributes: ['senderId', 'receiverId'],
+    });
 
     const pendingSet = new Set();
     pendingRequests.forEach((request) => {
-      pendingSet.add(`${request.sender.toString()}-${request.receiver.toString()}`);
-      pendingSet.add(`${request.receiver.toString()}-${request.sender.toString()}`);
+      pendingSet.add(`${request.senderId}-${request.receiverId}`);
+      pendingSet.add(`${request.receiverId}-${request.senderId}`);
     });
 
-    const results = users.map((user) => ({
-      ...user.toObject(),
-      isFriend: currentUser.friends.some((friendId) => friendId.toString() === user._id.toString()),
-      hasPendingRequest: pendingSet.has(`${req.user.id}-${user._id.toString()}`),
-    }));
+    const friends = currentUser?.friends?.map((friend) => friend.id.toString()) || [];
+
+    const results = users.map((user) => {
+      const plainUser = user.toJSON();
+      return {
+        ...plainUser,
+        isFriend: friends.includes(String(plainUser.id)),
+        hasPendingRequest: pendingSet.has(`${req.user.id}-${plainUser.id}`),
+      };
+    });
 
     return res.status(200).json(results);
   } catch (error) {
@@ -50,9 +67,10 @@ router.get('/search', auth, async (req, res) => {
 
 router.get('/profile/:id', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .select('-password')
-      .populate('friends', 'name email avatar');
+    const user = await User.findByPk(req.params.id, {
+      attributes: { exclude: ['password'] },
+      include: [{ model: User, as: 'friends', attributes: ['id', 'name', 'email', 'avatar'] }],
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -68,7 +86,7 @@ router.put('/profile', auth, async (req, res) => {
   try {
     const { name, bio, avatar, location, work, study, dob, relationship } = req.body;
 
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -85,7 +103,7 @@ router.put('/profile', auth, async (req, res) => {
     await user.save();
 
     return res.status(200).json({
-      id: user._id,
+      id: user.id,
       name: user.name,
       email: user.email,
       bio: user.bio,
@@ -95,7 +113,7 @@ router.put('/profile', auth, async (req, res) => {
       study: user.study,
       dob: user.dob,
       relationship: user.relationship,
-      friends: user.friends,
+      friends: [],
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error' });
