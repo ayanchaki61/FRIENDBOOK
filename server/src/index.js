@@ -24,10 +24,22 @@ const allowedOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || '')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const isAzureStaticOrigin = (origin) =>
+  typeof origin === 'string' && origin.endsWith('.azurestaticapps.net');
+
+const isRenderOrigin = (origin) =>
+  typeof origin === 'string' && origin.endsWith('.onrender.com');
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      if (
+        !origin
+        || allowedOrigins.length === 0
+        || allowedOrigins.includes(origin)
+        || isAzureStaticOrigin(origin)
+        || isRenderOrigin(origin)
+      ) {
         callback(null, true);
         return;
       }
