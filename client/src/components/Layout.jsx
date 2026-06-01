@@ -4,22 +4,34 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 
 function Layout() {
-  const { logout, user } = useAuth();
+  const { logout, user, refreshMe } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [latestNotificationKey, setLatestNotificationKey] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const loadUnreadCounts = async () => {
+  const loadNotificationStatus = async () => {
     try {
       const [messagesResponse, notificationsResponse] = await Promise.all([
         api.get('/messages/unread-count'),
-        api.get('/notifications/unread-count'),
+        api.get('/notifications/status'),
       ]);
 
       setUnreadMessages(messagesResponse.data.count || 0);
-      setUnreadNotifications(notificationsResponse.data.count || 0);
+
+      const count = notificationsResponse.data.count || 0;
+      setUnreadNotifications(count);
+
+      const latestNotification = notificationsResponse.data.latestNotification;
+      const currentKey = latestNotification ? `${latestNotification.id}-${latestNotification.createdAt}` : null;
+
+      if (user && latestNotificationKey !== null && currentKey !== latestNotificationKey) {
+        await refreshMe();
+      }
+
+      setLatestNotificationKey(currentKey);
     } catch {
       setUnreadMessages(0);
       setUnreadNotifications(0);
@@ -27,17 +39,17 @@ function Layout() {
   };
 
   useEffect(() => {
-    loadUnreadCounts();
+    loadNotificationStatus();
 
-    const intervalId = setInterval(loadUnreadCounts, 4000);
-    const onFocus = () => loadUnreadCounts();
+    const intervalId = setInterval(loadNotificationStatus, 4000);
+    const onFocus = () => loadNotificationStatus();
     window.addEventListener('focus', onFocus);
 
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
     };
-  }, [location.pathname]);
+  }, [location.pathname, latestNotificationKey, refreshMe]);
 
   useEffect(() => {
     setMobileNavOpen(false);
