@@ -18,10 +18,16 @@ const isConfiguredGoogleClientId = (value) => {
   );
 };
 
-const signToken = (user) =>
-  jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, {
+const signToken = (user) => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not configured on the server');
+  }
+
+  return jwt.sign({ id: user.id, email: user.email }, secret, {
     expiresIn: '7d',
   });
+};
 
 const serializeUser = (user) => {
   const plainUser = user.toJSON ? user.toJSON() : user;
@@ -81,7 +87,9 @@ router.post('/signup', async (req, res) => {
       user: serializeUser(user),
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Server error' });
+    // eslint-disable-next-line no-console
+    console.error('Signup error:', error);
+    return res.status(500).json({ message: error.message || 'Server error' });
   }
 });
 
@@ -113,7 +121,9 @@ router.post('/login', async (req, res) => {
       user: serializeUser(user),
     });
   } catch (error) {
-    return res.status(500).json({ message: 'Server error' });
+    // eslint-disable-next-line no-console
+    console.error('Login error:', error);
+    return res.status(500).json({ message: error.message || 'Server error' });
   }
 });
 
