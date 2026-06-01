@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import api from '../api/client';
 
 function GoogleAuthButton({ onCredential, disabled = false }) {
   const rawClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -68,13 +69,9 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
       if (builtClientId) return;
 
       try {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
-        const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/auth/config`);
-        if (!response.ok) return;
-
-        const data = await response.json();
-        if (data.googleClientId) {
-          setRuntimeClientId(data.googleClientId.trim());
+        const response = await api.get('/auth/config');
+        if (response?.data?.googleClientId) {
+          setRuntimeClientId(response.data.googleClientId.trim());
         }
       } catch {
         // ignore runtime config fetch failures
