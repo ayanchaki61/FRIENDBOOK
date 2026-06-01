@@ -10,6 +10,14 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
   const authSetupHint = import.meta.env.MODE === 'production'
     ? 'Set VITE_GOOGLE_CLIENT_ID in your production build environment (Azure app settings) and redeploy the frontend.'
     : 'Add VITE_GOOGLE_CLIENT_ID to client/.env and restart the frontend.';
+  const clientIdStatus = !clientId
+    ? 'No client ID was found in the built app.'
+    : clientId.includes('your_google_oauth_client_id')
+    ? 'The client ID still contains the placeholder value.'
+    : clientId.includes('.apps.googleusercontent.com')
+    ? 'Client ID appears configured.'
+    : 'The client ID format looks invalid for Google OAuth.';
+  const clientIdPreview = clientId ? `Current built value: ${clientId}` : 'Current built value is empty.';
   const containerRef = useRef(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
 
@@ -88,6 +96,10 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
         Google sign-in is not configured. Add your <code>VITE_GOOGLE_CLIENT_ID</code> in <code>client/.env</code> or your Azure app settings, then redeploy.
         <br />
         {authSetupHint}
+        <br />
+        {clientIdStatus}
+        <br />
+        <code>{clientIdPreview}</code>
       </p>
     );
   }
