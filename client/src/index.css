@@ -1008,32 +1008,26 @@ button.profile-name-link:hover {
   }
 
   .menu-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.88rem;
+    display: none;
   }
 
   .nav-links {
-    display: none;
-    gap: 0.4rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
     margin-bottom: 0.55rem;
   }
 
   .nav-links.nav-open {
     display: flex;
-    flex-wrap: wrap;
-    overflow: visible;
-    gap: 0.35rem;
-    padding-bottom: 0;
   }
 
   .nav-links a {
-    flex: 1 1 calc(33.333% - 0.35rem);
-    min-width: 96px;
+    flex: 1 1 calc(50% - 0.35rem);
+    min-width: 80px;
     text-align: center;
-    font-size: 0.92rem;
-    padding: 0.5rem 0.45rem;
+    font-size: 0.82rem;
+    padding: 0.42rem 0.35rem;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.14);
   }
