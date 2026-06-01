@@ -6,7 +6,7 @@ import { navigateToProfileId } from '../utils/profileNavigation';
 
 function NotificationsPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshMe } = useAuth();
   const [notifications, setNotifications] = useState([]);
 
   const loadNotifications = async () => {
@@ -37,6 +37,10 @@ function NotificationsPage() {
         )
       );
 
+      if (item.type === 'friend_accept') {
+        await refreshMe();
+      }
+
       if (item.relatedPost?.id) {
         navigate(`/home?post=${item.relatedPost.id}`);
         return;
@@ -47,6 +51,9 @@ function NotificationsPage() {
       }
     } catch {
       // Keep the card clickable even if read status update fails.
+      if (item.type === 'friend_accept') {
+        await refreshMe();
+      }
       if (item.relatedPost?.id) {
         navigate(`/home?post=${item.relatedPost.id}`);
       }
