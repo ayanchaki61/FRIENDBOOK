@@ -147,8 +147,9 @@ function FriendsPage() {
           {!requests.length && <p>No incoming requests.</p>}
           {requests.map((request) => {
             const senderId = request.sender?._id || request.sender?.id;
+            const requestId = request.id || request._id;
             return (
-              <div className="list-item" key={request._id}>
+              <div className="list-item" key={requestId}>
                 <button
                   type="button"
                   className="search-result-main search-result-link"
@@ -167,18 +168,18 @@ function FriendsPage() {
                 <div className="request-action-row">
                   <button
                     type="button"
-                    onClick={() => acceptRequest(request._id)}
-                    disabled={requestActionId === request._id}
+                    onClick={() => acceptRequest(requestId)}
+                    disabled={requestActionId === requestId}
                   >
-                    {requestActionId === request._id ? '...' : 'Accept'}
+                    {requestActionId === requestId ? '...' : 'Accept'}
                   </button>
                   <button
                     type="button"
                     className="btn-muted"
-                    onClick={() => rejectRequest(request._id)}
-                    disabled={requestActionId === request._id}
+                    onClick={() => rejectRequest(requestId)}
+                    disabled={requestActionId === requestId}
                   >
-                    {requestActionId === request._id ? '...' : 'Reject'}
+                    {requestActionId === requestId ? '...' : 'Reject'}
                   </button>
                 </div>
               </div>
