@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import AvatarImage from '../components/AvatarImage';
+import { navigateToUserProfile } from '../utils/profileNavigation';
 
 function WallPage() {
   const { user } = useAuth();
@@ -103,9 +104,7 @@ function WallPage() {
   };
 
   const openUserProfile = (profileUser) => {
-    const profileId = profileUser?._id || profileUser?.id;
-    if (!profileId) return;
-    navigate(`/profile/${profileId}`);
+    navigateToUserProfile(navigate, profileUser, user);
   };
 
   return (

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import AvatarImage from '../components/AvatarImage';
+import { navigateToUserProfile } from '../utils/profileNavigation';
 
 function FriendProfilePage() {
   const { user, refreshMe } = useAuth();
@@ -32,8 +33,14 @@ function FriendProfilePage() {
   }, [id]);
 
   useEffect(() => {
+    const ownId = user?._id || user?.id;
+    if (ownId && id && String(ownId) === String(id)) {
+      navigate('/profile');
+      return;
+    }
+
     loadProfile();
-  }, [loadProfile]);
+  }, [id, loadProfile, navigate, user]);
 
   const toggleLike = async (postId) => {
     try {
@@ -130,9 +137,7 @@ function FriendProfilePage() {
   };
 
   const openUserProfile = (profileUser) => {
-    const profileId = profileUser?._id || profileUser?.id;
-    if (!profileId) return;
-    navigate(`/profile/${profileId}`);
+    navigateToUserProfile(navigate, profileUser, user);
   };
 
   if (error) {

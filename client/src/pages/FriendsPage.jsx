@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import AvatarImage from '../components/AvatarImage';
+import { navigateToProfileId } from '../utils/profileNavigation';
 
 function FriendsPage() {
   const { refreshMe, user } = useAuth();
@@ -120,7 +121,7 @@ function FriendsPage() {
                   <button
                     type="button"
                     className="search-result-main search-result-link"
-                    onClick={() => navigate(`/profile/${itemId}`)}
+                    onClick={() => navigateToProfileId(navigate, itemId, user)}
                   >
                     <AvatarImage src={item.avatar} alt={item.name} className="friend-thumb" />
                     <div>
@@ -153,7 +154,7 @@ function FriendsPage() {
                 <button
                   type="button"
                   className="search-result-main search-result-link"
-                  onClick={() => navigate(`/profile/${senderId}`)}
+                  onClick={() => navigateToProfileId(navigate, senderId, user)}
                 >
                   <AvatarImage
                     src={request.sender?.avatar}
@@ -201,7 +202,7 @@ function FriendsPage() {
                 <button
                   type="button"
                   className="friend-card"
-                  onClick={() => navigate(`/profile/${friendId}`)}
+                  onClick={() => navigateToProfileId(navigate, friendId, user)}
                 >
                   <AvatarImage src={friend.avatar} alt={friend.name} className="friend-thumb" />
                   <span>{friend.name}</span>

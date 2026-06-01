@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import AvatarImage from '../components/AvatarImage';
 import { useNavigate } from 'react-router-dom';
+import { navigateToUserProfile } from '../utils/profileNavigation';
 
 function ProfilePage() {
   const { user, refreshMe } = useAuth();
@@ -240,9 +241,7 @@ function ProfilePage() {
   };
 
   const openUserProfile = (profileUser) => {
-    const profileId = profileUser?._id || profileUser?.id;
-    if (!profileId) return;
-    navigate(`/profile/${profileId}`);
+    navigateToUserProfile(navigate, profileUser, user);
   };
 
   return (

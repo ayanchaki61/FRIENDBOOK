@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { navigateToProfileId } from '../utils/profileNavigation';
 
 function NotificationsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
 
   const loadNotifications = async () => {
@@ -37,8 +40,8 @@ function NotificationsPage() {
         return;
       }
 
-      if (item.relatedUser?._id) {
-        navigate(`/profile/${item.relatedUser._id}`);
+      if (item.relatedUser?._id || item.relatedUser?.id) {
+        navigateToProfileId(navigate, item.relatedUser._id || item.relatedUser?.id, user);
       }
     } catch {
       // Keep the card clickable even if read status update fails.
