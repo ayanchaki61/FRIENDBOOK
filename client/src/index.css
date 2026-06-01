@@ -881,6 +881,7 @@ button.profile-name-link:hover {
   align-items: center;
   gap: 0.45rem;
   margin-bottom: 0.55rem;
+  width: 100%;
 }
 
 .bubble-row.mine {
@@ -897,6 +898,10 @@ button.profile-name-link:hover {
   border-radius: 12px;
   padding: 0.55rem 0.65rem;
   background: #edf5ff;
+}
+
+.bubble-row.mine .message-bubble {
+  margin-left: auto;
 }
 
 .message-avatar {
