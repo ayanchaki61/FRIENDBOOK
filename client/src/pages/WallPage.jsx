@@ -141,15 +141,18 @@ function WallPage() {
       <section className="card feed">
         <h2>Home Feed</h2>
         {posts.length === 0 && <p>No posts yet. Start the first one.</p>}
-        {posts.map((post) => (
-          <article
-            className={`post ${focusedPostId === post._id ? 'post-focus' : ''}`}
-            id={`post-${post._id}`}
-            key={post._id}
-          >
-            {(() => {
-              const currentUserId = user?._id || user?.id;
-              const isLoved = (post.likes || []).some((id) => id === currentUserId || id?._id === currentUserId);
+        {posts.map((post) => {
+          const postId = post._id || post.id;
+
+          return (
+            <article
+              className={`post ${focusedPostId === postId ? 'post-focus' : ''}`}
+              id={`post-${postId}`}
+              key={postId}
+            >
+              {(() => {
+                const currentUserId = user?._id || user?.id;
+                const isLoved = (post.likes || []).some((id) => id === currentUserId || id?._id === currentUserId);
 
               return (
                 <>
@@ -176,11 +179,11 @@ function WallPage() {
                 role="button"
                 tabIndex={0}
                 className={`love-icon ${isLoved ? 'active' : ''}`}
-                onClick={() => toggleLike(post._id)}
+                onClick={() => toggleLike(postId)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    toggleLike(post._id);
+                    toggleLike(postId);
                   }
                 }}
                 aria-label="Love post"
@@ -192,69 +195,72 @@ function WallPage() {
             </div>
 
             <div className="comment-list">
-              {(post.comments || []).map((comment) => (
-                <div className="comment-item" key={comment._id}>
-                  <button
-                    type="button"
-                    className="profile-inline-link"
-                    onClick={() => openUserProfile(comment.user)}
-                  >
-                    <AvatarImage src={comment.user?.avatar} alt={comment.user?.name || 'User'} className="comment-avatar" />
-                  </button>
-                  <div className="comment-main">
-                    <div>
-                      <button
-                        type="button"
-                        className="profile-inline-link profile-name-link"
-                        onClick={() => openUserProfile(comment.user)}
-                      >
-                        <strong>{comment.user?.name || 'User'}</strong>
-                      </button>
-                      <p>{comment.text}</p>
-                    </div>
-                    {(() => {
-                      const currentUserId = user?._id || user?.id;
-                      const loved = (comment.likes || []).some(
-                        (id) => id === currentUserId || id?._id === currentUserId
-                      );
-
-                      return (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className={`love-icon comment-love ${loved ? 'active' : ''}`}
-                          onClick={() => toggleCommentLike(post._id, comment._id)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              toggleCommentLike(post._id, comment._id);
-                            }
-                          }}
-                          aria-label="Love comment"
-                          title="Love comment"
+              {(post.comments || []).map((comment) => {
+                const commentId = comment._id || comment.id;
+                return (
+                  <div className="comment-item" key={commentId}>
+                    <button
+                      type="button"
+                      className="profile-inline-link"
+                      onClick={() => openUserProfile(comment.user)}
+                    >
+                      <AvatarImage src={comment.user?.avatar} alt={comment.user?.name || 'User'} className="comment-avatar" />
+                    </button>
+                    <div className="comment-main">
+                      <div>
+                        <button
+                          type="button"
+                          className="profile-inline-link profile-name-link"
+                          onClick={() => openUserProfile(comment.user)}
                         >
-                          {loved ? '♥' : '♡'} {comment.likes?.length || 0}
-                        </span>
-                      );
-                    })()}
+                          <strong>{comment.user?.name || 'User'}</strong>
+                        </button>
+                        <p>{comment.text}</p>
+                      </div>
+                      {(() => {
+                        const currentUserId = user?._id || user?.id;
+                        const loved = (comment.likes || []).some(
+                          (id) => id === currentUserId || id?._id === currentUserId
+                        );
+
+                        return (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            className={`love-icon comment-love ${loved ? 'active' : ''}`}
+                            onClick={() => toggleCommentLike(postId, commentId)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                toggleCommentLike(postId, commentId);
+                              }
+                            }}
+                            aria-label="Love comment"
+                            title="Love comment"
+                          >
+                            {loved ? '♥' : '♡'} {comment.likes?.length || 0}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="comment-form-row">
               <input
                 type="text"
-                value={commentInputs[post._id] || ''}
+                value={commentInputs[postId] || ''}
                 onChange={(e) =>
                   setCommentInputs((prev) => ({
                     ...prev,
-                    [post._id]: e.target.value,
+                    [postId]: e.target.value,
                   }))
                 }
                 placeholder="Write a comment"
               />
-              <button type="button" onClick={() => submitComment(post._id)}>
+              <button type="button" onClick={() => submitComment(postId)}>
                 Comment
               </button>
             </div>
