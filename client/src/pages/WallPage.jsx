@@ -143,6 +143,8 @@ function WallPage() {
         {posts.length === 0 && <p>No posts yet. Start the first one.</p>}
         {posts.map((post) => {
           const postId = post._id || post.id;
+          const currentUserId = user?._id || user?.id;
+          const isLoved = (post.likes || []).some((id) => id === currentUserId || id?._id === currentUserId);
 
           return (
             <article
@@ -150,12 +152,6 @@ function WallPage() {
               id={`post-${postId}`}
               key={postId}
             >
-              {(() => {
-                const currentUserId = user?._id || user?.id;
-                const isLoved = (post.likes || []).some((id) => id === currentUserId || id?._id === currentUserId);
-
-              return (
-                <>
             <div className="post-head">
               <button type="button" className="profile-inline-link post-author-link" onClick={() => openUserProfile(post.author)}>
                 <AvatarImage src={post.author?.avatar} alt={post.author?.name || 'User'} className="post-author-avatar" />
@@ -264,11 +260,9 @@ function WallPage() {
                 Comment
               </button>
             </div>
-                </>
-              );
-            })()}
           </article>
-        ))}
+        );
+      })}
       </section>
     </div>
   );
