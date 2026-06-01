@@ -26,19 +26,19 @@ router.post('/image', auth, (req, res) => {
       try {
         const uploaded = await cloudinary.uploader.upload(req.file.path, {
           folder: `friendbook/${folderName}`,
-          resource_type: 'image',
+          resource_type: 'auto',
         });
 
         fs.unlink(req.file.path, () => {});
 
         return res.status(201).json({
-          message: 'Image uploaded',
+          message: 'Media uploaded',
           url: uploaded.secure_url,
           path: uploaded.public_id,
         });
       } catch (cloudinaryError) {
         fs.unlink(req.file.path, () => {});
-        return res.status(500).json({ message: 'Cloud image upload failed' });
+        return res.status(500).json({ message: 'Cloud upload failed' });
       }
     }
 

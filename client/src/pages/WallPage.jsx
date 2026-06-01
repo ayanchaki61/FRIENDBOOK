@@ -127,7 +127,7 @@ function WallPage() {
           />
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
           />
           {photoFile && <small>Selected: {photoFile.name}</small>}
@@ -163,7 +163,14 @@ function WallPage() {
               </button>
             </div>
             {post.text && <p>{post.text}</p>}
-            {post.photoUrl && <img src={post.photoUrl} alt="Shared post" className="post-image" />}
+            {post.photoUrl && (/(\.(mp4|webm|ogg|mov|mkv|avi))(\?.*)?$/i.test(post.photoUrl) ? (
+              <video controls className="post-image">
+                <source src={post.photoUrl} />
+                Your browser does not support this video.
+              </video>
+            ) : (
+              <img src={post.photoUrl} alt="Shared post" className="post-image" />
+            ))}
             <div className="post-reactions">
               <span
                 role="button"
