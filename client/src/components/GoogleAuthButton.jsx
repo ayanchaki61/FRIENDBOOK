@@ -4,7 +4,12 @@ import api from '../api/client';
 function GoogleAuthButton({ onCredential, disabled = false }) {
   const rawClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const builtClientId = typeof rawClientId === 'string' ? rawClientId.trim() : '';
-  const [runtimeClientId, setRuntimeClientId] = useState('');
+  const getCachedClientId = () => {
+    if (typeof window === 'undefined') return '';
+    return window.sessionStorage.getItem('friendbook_google_client_id') || '';
+  };
+  const [runtimeClientId, setRuntimeClientId] = useState(getCachedClientId);
+  const [runtimeChecked, setRuntimeChecked] = useState(false);
   const clientId = builtClientId || runtimeClientId;
   const isConfiguredClientId =
     clientId.length > 0
@@ -66,15 +71,34 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
 
   useEffect(() => {
     const loadRuntimeClientId = async () => {
-      if (builtClientId) return;
+      if (builtClientId) {
+        setRuntimeChecked(true);
+        return;
+      }
+
+      const cachedClientId = typeof window !== 'undefined'
+        ? window.sessionStorage.getItem('friendbook_google_client_id')?.trim() || ''
+        : '';
+
+      if (cachedClientId) {
+        setRuntimeClientId(cachedClientId);
+        setRuntimeChecked(true);
+        return;
+      }
 
       try {
         const response = await api.get('/auth/config');
-        if (response?.data?.googleClientId) {
-          setRuntimeClientId(response.data.googleClientId.trim());
+        const fetchedClientId = response?.data?.googleClientId?.trim() || '';
+        if (fetchedClientId) {
+          setRuntimeClientId(fetchedClientId);
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem('friendbook_google_client_id', fetchedClientId);
+          }
         }
       } catch {
         // ignore runtime config fetch failures
+      } finally {
+        setRuntimeChecked(true);
       }
     };
 
@@ -111,6 +135,10 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
   }, [clientId, isConfiguredClientId, scriptLoaded, onCredential]);
 
   if (!isConfiguredClientId) {
+    if (!runtimeChecked) {
+      return <div className="google-btn-wrap" />;
+    }
+
     return (
       <p className="muted">
         Google sign-in is not configured. Add your <code>VITE_GOOGLE_CLIENT_ID</code> in <code>client/.env</code> or your Azure app settings, then redeploy.
