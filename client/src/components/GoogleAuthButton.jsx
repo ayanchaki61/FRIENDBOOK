@@ -7,6 +7,9 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
     clientId.length > 0
     && clientId.includes('.apps.googleusercontent.com')
     && !clientId.includes('your_google_oauth_client_id');
+  const authSetupHint = import.meta.env.MODE === 'production'
+    ? 'Set VITE_GOOGLE_CLIENT_ID in your production build environment (Azure app settings) and redeploy the frontend.'
+    : 'Add VITE_GOOGLE_CLIENT_ID to client/.env and restart the frontend.';
   const containerRef = useRef(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
 
@@ -80,7 +83,13 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
   }, [clientId, isConfiguredClientId, scriptLoaded, onCredential]);
 
   if (!isConfiguredClientId) {
-    return <p className="muted">Google sign-in is not configured. Add your `VITE_GOOGLE_CLIENT_ID` in `client/.env`.</p>;
+    return (
+      <p className="muted">
+        Google sign-in is not configured. Add your <code>VITE_GOOGLE_CLIENT_ID</code> in <code>client/.env</code> or your Azure app settings, then redeploy.
+        <br />
+        {authSetupHint}
+      </p>
+    );
   }
 
   return (
