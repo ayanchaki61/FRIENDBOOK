@@ -9,29 +9,30 @@ function Layout() {
   const location = useLocation();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [latestNotificationKey, setLatestNotificationKey] = useState(null);
+  const [notificationStatusKey, setNotificationStatusKey] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const loadNotificationStatus = async () => {
     try {
-      const [messagesResponse, notificationsResponse] = await Promise.all([
+      const [messagesResponse, unreadResponse, statusResponse] = await Promise.all([
         api.get('/messages/unread-count'),
-        api.get('/notifications/status'),
+        api.get('/notifications/unread-count'),
+        api.get('/notifications/status').catch(() => null),
       ]);
 
       setUnreadMessages(messagesResponse.data.count || 0);
+      setUnreadNotifications(unreadResponse.data.count || 0);
 
-      const count = notificationsResponse.data.count || 0;
-      setUnreadNotifications(count);
+      if (statusResponse?.data) {
+        const latestNotification = statusResponse.data.latestNotification;
+        const currentKey = latestNotification ? `${latestNotification.id}-${latestNotification.createdAt}` : null;
 
-      const latestNotification = notificationsResponse.data.latestNotification;
-      const currentKey = latestNotification ? `${latestNotification.id}-${latestNotification.createdAt}` : null;
+        if (user && notificationStatusKey !== null && currentKey !== notificationStatusKey) {
+          await refreshMe();
+        }
 
-      if (user && latestNotificationKey !== null && currentKey !== latestNotificationKey) {
-        await refreshMe();
+        setNotificationStatusKey(currentKey);
       }
-
-      setLatestNotificationKey(currentKey);
     } catch {
       setUnreadMessages(0);
       setUnreadNotifications(0);
@@ -49,7 +50,7 @@ function Layout() {
       clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
     };
-  }, [location.pathname, latestNotificationKey, refreshMe]);
+  }, [location.pathname, notificationStatusKey, refreshMe, user]);
 
   useEffect(() => {
     setMobileNavOpen(false);
