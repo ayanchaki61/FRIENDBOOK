@@ -19,14 +19,16 @@ function NotificationsPage() {
   }, []);
 
   const openNotification = async (item) => {
+    const notificationId = item.id || item._id;
+
     try {
-      if (!item.isRead) {
-        await api.post(`/notifications/${item._id}/read`);
+      if (!item.isRead && notificationId) {
+        await api.post(`/notifications/${notificationId}/read`);
       }
 
       setNotifications((prev) =>
         prev.map((n) =>
-          n._id === item._id
+          (n.id || n._id) === notificationId
             ? {
                 ...n,
                 isRead: true,
@@ -35,18 +37,18 @@ function NotificationsPage() {
         )
       );
 
-      if (item.relatedPost?._id) {
-        navigate(`/home?post=${item.relatedPost._id}`);
+      if (item.relatedPost?.id) {
+        navigate(`/home?post=${item.relatedPost.id}`);
         return;
       }
 
-      if (item.relatedUser?._id || item.relatedUser?.id) {
-        navigateToProfileId(navigate, item.relatedUser._id || item.relatedUser?.id, user);
+      if (item.relatedUser?.id) {
+        navigateToProfileId(navigate, item.relatedUser.id, user);
       }
     } catch {
       // Keep the card clickable even if read status update fails.
-      if (item.relatedPost?._id) {
-        navigate(`/home?post=${item.relatedPost._id}`);
+      if (item.relatedPost?.id) {
+        navigate(`/home?post=${item.relatedPost.id}`);
       }
     }
   };
@@ -58,7 +60,7 @@ function NotificationsPage() {
       {notifications.map((item) => (
         <article
           className={`notification notification-clickable ${item.isRead ? 'read' : ''}`}
-          key={item._id}
+          key={item.id || item._id}
           onClick={() => openNotification(item)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
