@@ -21,6 +21,19 @@ function FriendsPage() {
     setFriends(Array.isArray(user?.friends) ? user.friends : []);
   }, [user?.friends]);
 
+  useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key === 'friendbook_user_updated_at') {
+        refreshMe();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [refreshMe]);
+
   const searchUsers = async () => {
     if (!searchText.trim()) {
       setResults([]);

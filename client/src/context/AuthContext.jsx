@@ -28,11 +28,20 @@ export function AuthProvider({ children }) {
     loadUser();
   }, []);
 
+  const notifyUserUpdated = () => {
+    if (typeof window !== 'undefined') {
+      const event = new Event('friendbook:userUpdated');
+      window.dispatchEvent(event);
+      window.localStorage.setItem('friendbook_user_updated_at', Date.now().toString());
+    }
+  };
+
   const login = async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
     localStorage.setItem('friendbook_token', response.data.token);
     const meResponse = await api.get('/auth/me');
     setUser(meResponse.data);
+    notifyUserUpdated();
   };
 
   const signup = async (name, email, password) => {
@@ -40,6 +49,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('friendbook_token', response.data.token);
     const meResponse = await api.get('/auth/me');
     setUser(meResponse.data);
+    notifyUserUpdated();
   };
 
   const googleAuth = async (credential) => {
@@ -47,6 +57,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('friendbook_token', response.data.token);
     const meResponse = await api.get('/auth/me');
     setUser(meResponse.data);
+    notifyUserUpdated();
   };
 
   const logout = () => {
@@ -57,6 +68,7 @@ export function AuthProvider({ children }) {
   const refreshMe = async () => {
     const response = await api.get('/auth/me');
     setUser(response.data);
+    notifyUserUpdated();
     return response.data;
   };
 
