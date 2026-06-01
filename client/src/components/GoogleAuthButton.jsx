@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 
 function GoogleAuthButton({ onCredential, disabled = false }) {
   const rawClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  const clientId = typeof rawClientId === 'string' ? rawClientId.trim() : '';
+  const builtClientId = typeof rawClientId === 'string' ? rawClientId.trim() : '';
+  const [runtimeClientId, setRuntimeClientId] = useState('');
+  const clientId = builtClientId || runtimeClientId;
   const isConfiguredClientId =
     clientId.length > 0
     && clientId.includes('.apps.googleusercontent.com')
@@ -11,13 +13,13 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
     ? 'Set VITE_GOOGLE_CLIENT_ID in your production build environment (Azure app settings) and redeploy the frontend.'
     : 'Add VITE_GOOGLE_CLIENT_ID to client/.env and restart the frontend.';
   const clientIdStatus = !clientId
-    ? 'No client ID was found in the built app.'
-    : clientId.includes('your_google_oauth_client_id')
-    ? 'The client ID still contains the placeholder value.'
-    : clientId.includes('.apps.googleusercontent.com')
-    ? 'Client ID appears configured.'
-    : 'The client ID format looks invalid for Google OAuth.';
-  const clientIdPreview = clientId ? `Current built value: ${clientId}` : 'Current built value is empty.';
+    ? 'No client ID was found in the built app or runtime config.'
+    : builtClientId && clientId === builtClientId
+    ? builtClientId.includes('your_google_oauth_client_id')
+      ? 'The build-time client ID still contains the placeholder value.'
+      : 'Client ID appears configured from build-time env.'
+    : 'Client ID loaded from backend runtime config.';
+  const clientIdPreview = clientId ? `Current value: ${clientId}` : 'Current value is empty.';
   const containerRef = useRef(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
 
@@ -60,6 +62,27 @@ function GoogleAuthButton({ onCredential, disabled = false }) {
       script.removeEventListener('load', handleLoad);
     };
   }, []);
+
+  useEffect(() => {
+    const loadRuntimeClientId = async () => {
+      if (builtClientId) return;
+
+      try {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+        const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/auth/config`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (data.googleClientId) {
+          setRuntimeClientId(data.googleClientId.trim());
+        }
+      } catch {
+        // ignore runtime config fetch failures
+      }
+    };
+
+    loadRuntimeClientId();
+  }, [builtClientId]);
 
   useEffect(() => {
     if (!isConfiguredClientId || !scriptLoaded || !window.google || !containerRef.current) {

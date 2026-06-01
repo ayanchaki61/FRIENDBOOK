@@ -61,6 +61,13 @@ const getGoogleClient = () => {
   return new OAuth2Client(clientId.trim());
 };
 
+router.get('/config', (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  return res.status(200).json({
+    googleClientId: isConfiguredGoogleClientId(clientId) ? clientId.trim() : '',
+  });
+});
+
 router.post('/signup', async (req, res) => {
   try {
     const { name, email, password } = req.body;
