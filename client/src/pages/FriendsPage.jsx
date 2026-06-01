@@ -113,28 +113,31 @@ function FriendsPage() {
           </div>
           {status && <p>{status}</p>}
           <div className="list">
-            {results.map((item) => (
-              <div className="list-item search-result-item" key={item._id}>
-                <button
-                  type="button"
-                  className="search-result-main search-result-link"
-                  onClick={() => navigate(`/profile/${item._id}`)}
-                >
-                  <AvatarImage src={item.avatar} alt={item.name} className="friend-thumb" />
-                  <div>
-                    <strong>{item.name}</strong>
-                    <p>{item.email}</p>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  disabled={item.isFriend || item.hasPendingRequest}
-                  onClick={() => sendRequest(item._id)}
-                >
-                  {item.isFriend ? 'Friend' : item.hasPendingRequest ? 'Pending' : 'Add Friend'}
-                </button>
-              </div>
-            ))}
+            {results.map((item) => {
+              const itemId = item._id || item.id;
+              return (
+                <div className="list-item search-result-item" key={itemId}>
+                  <button
+                    type="button"
+                    className="search-result-main search-result-link"
+                    onClick={() => navigate(`/profile/${itemId}`)}
+                  >
+                    <AvatarImage src={item.avatar} alt={item.name} className="friend-thumb" />
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p>{item.email}</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={item.isFriend || item.hasPendingRequest}
+                    onClick={() => sendRequest(itemId)}
+                  >
+                    {item.isFriend ? 'Friend' : item.hasPendingRequest ? 'Pending' : 'Add Friend'}
+                  </button>
+                </div>
+              );
+            })}
             {hasSearched && !results.length && <p className="search-empty-msg">No users found for "{searchText.trim()}".</p>}
           </div>
         </section>
@@ -142,42 +145,45 @@ function FriendsPage() {
         <section className="card">
           <h2>Friend Requests</h2>
           {!requests.length && <p>No incoming requests.</p>}
-          {requests.map((request) => (
-            <div className="list-item" key={request._id}>
-              <button
-                type="button"
-                className="search-result-main search-result-link"
-                onClick={() => navigate(`/profile/${request.sender?._id}`)}
-              >
-                <AvatarImage
-                  src={request.sender?.avatar}
-                  alt={request.sender?.name || 'User'}
-                  className="friend-thumb"
-                />
-                <div>
-                  <strong>{request.sender?.name}</strong>
-                  <p>{request.sender?.email}</p>
+          {requests.map((request) => {
+            const senderId = request.sender?._id || request.sender?.id;
+            return (
+              <div className="list-item" key={request._id}>
+                <button
+                  type="button"
+                  className="search-result-main search-result-link"
+                  onClick={() => navigate(`/profile/${senderId}`)}
+                >
+                  <AvatarImage
+                    src={request.sender?.avatar}
+                    alt={request.sender?.name || 'User'}
+                    className="friend-thumb"
+                  />
+                  <div>
+                    <strong>{request.sender?.name}</strong>
+                    <p>{request.sender?.email}</p>
+                  </div>
+                </button>
+                <div className="request-action-row">
+                  <button
+                    type="button"
+                    onClick={() => acceptRequest(request._id)}
+                    disabled={requestActionId === request._id}
+                  >
+                    {requestActionId === request._id ? '...' : 'Accept'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-muted"
+                    onClick={() => rejectRequest(request._id)}
+                    disabled={requestActionId === request._id}
+                  >
+                    {requestActionId === request._id ? '...' : 'Reject'}
+                  </button>
                 </div>
-              </button>
-              <div className="request-action-row">
-                <button
-                  type="button"
-                  onClick={() => acceptRequest(request._id)}
-                  disabled={requestActionId === request._id}
-                >
-                  {requestActionId === request._id ? '...' : 'Accept'}
-                </button>
-                <button
-                  type="button"
-                  className="btn-muted"
-                  onClick={() => rejectRequest(request._id)}
-                  disabled={requestActionId === request._id}
-                >
-                  {requestActionId === request._id ? '...' : 'Reject'}
-                </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
       </div>
 
