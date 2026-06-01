@@ -1014,7 +1014,7 @@ button.profile-name-link:hover {
   .nav-links {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: 0.25rem;
     margin-bottom: 0.55rem;
   }
 
@@ -1023,13 +1023,18 @@ button.profile-name-link:hover {
   }
 
   .nav-links a {
-    flex: 1 1 calc(50% - 0.35rem);
-    min-width: 80px;
+    flex: 1 1 calc(25% - 0.35rem);
+    min-width: 70px;
     text-align: center;
-    font-size: 0.82rem;
-    padding: 0.42rem 0.35rem;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.3rem;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.14);
+  }
+
+  .nav-links a:last-child {
+    flex: 1 1 100%;
+    min-width: 100%;
   }
 
   .nav-links a.nav-item {
