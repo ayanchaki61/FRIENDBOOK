@@ -15,6 +15,11 @@ function FriendsPage() {
   const [unfriendingId, setUnfriendingId] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [requestActionId, setRequestActionId] = useState('');
+  const [friends, setFriends] = useState(Array.isArray(user?.friends) ? user.friends : []);
+
+  useEffect(() => {
+    setFriends(Array.isArray(user?.friends) ? user.friends : []);
+  }, [user?.friends]);
 
   const searchUsers = async () => {
     if (!searchText.trim()) {
@@ -53,7 +58,8 @@ function FriendsPage() {
       setRequestActionId(requestId);
       await api.post(`/friends/requests/${requestId}/accept`);
       await loadRequests();
-      await refreshMe();
+      const updatedUser = await refreshMe();
+      setFriends(Array.isArray(updatedUser?.friends) ? updatedUser.friends : []);
     } catch (error) {
       setStatus(error.response?.data?.message || 'Failed to accept request');
     } finally {
@@ -85,7 +91,8 @@ function FriendsPage() {
     try {
       setUnfriendingId(friendId);
       await api.delete(`/friends/${friendId}`);
-      await refreshMe();
+      const updatedUser = await refreshMe();
+      setFriends(Array.isArray(updatedUser?.friends) ? updatedUser.friends : []);
       setStatus('Unfriended successfully');
     } catch (error) {
       setStatus(error.response?.data?.message || 'Failed to unfriend user');
@@ -93,8 +100,6 @@ function FriendsPage() {
       setUnfriendingId('');
     }
   };
-
-  const friends = Array.isArray(user?.friends) ? user.friends : [];
 
   return (
     <>

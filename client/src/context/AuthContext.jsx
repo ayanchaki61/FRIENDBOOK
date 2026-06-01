@@ -57,6 +57,7 @@ export function AuthProvider({ children }) {
   const refreshMe = async () => {
     const response = await api.get('/auth/me');
     setUser(response.data);
+    return response.data;
   };
 
   const value = useMemo(
