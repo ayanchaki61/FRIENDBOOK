@@ -1,5 +1,6 @@
 
 name: Build and deploy ASP.Net Core app to an Azure Web App
+
 on:
   push:
     branches:
