@@ -2,10 +2,12 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const swaggerUi = require('swagger-ui-express');
 
 dotenv.config();
 
 const { connectSQL, sequelize } = require('./config/sql');
+const openapi = require('./config/openapi');
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -54,6 +56,11 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
+
+app.get('/api-docs.json', (req, res) => {
+  res.status(200).json(openapi);
+});
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapi));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

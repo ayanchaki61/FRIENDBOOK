@@ -137,6 +137,15 @@ After Vercel is deployed, copy the final Vercel URL and update:
 
 Redeploy backend and frontend after changing environment variables.
 
+## Swagger API Documentation
+
+Start the backend, then open the interactive API reference at:
+
+- Local: `http://localhost:5000/api-docs`
+- OpenAPI JSON: `http://localhost:5000/api-docs.json`
+
+In Swagger UI, use `POST /api/auth/signup` or `POST /api/auth/login` to get a token, click **Authorize**, and enter the token to try protected endpoints.
+
 ## API Endpoints
 
 ### Auth
